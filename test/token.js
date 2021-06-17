@@ -1,4 +1,5 @@
 const { expect } = require("chai");
+const { randomBytes } = require("@ethersproject/random");
 
 describe("Fluidex", () => {
   let fluidex;
@@ -7,6 +8,7 @@ describe("Fluidex", () => {
   let senderAddr;
   let acc2;
   let acc2addr;
+  const mockBjj = "randomBytes(32)";
   const initialBalance = 1000;
   const decimal = 2;
 
@@ -49,11 +51,12 @@ describe("Fluidex", () => {
     await expect(
       fluidex
         .connect(acc2)
-        .depositERC20(erc20Mock.address, acc2addr, depositAmount)
+        .depositERC20(erc20Mock.address, mockBjj, depositAmount)
     )
       .to.emit(fluidex, "NewPriorityRequest")
       .to.emit(fluidex, "Deposit")
-      .withArgs(tokenId, acc2addr, depositAmount);
+      .withArgs(tokenId, mockBjj, depositAmount);
+
     await expect(
       fluidex.withdrawERC20(erc20Mock.address, acc2addr, withdrawAmount)
     )
@@ -68,11 +71,11 @@ describe("Fluidex", () => {
     await expect(
       fluidex
         .connect(acc2)
-        .depositETH(acc2addr, {value: depositAmount})
+        .depositETH(mockBjj, {value: depositAmount})
     )
       .to.emit(fluidex, "NewPriorityRequest")
       .to.emit(fluidex, "Deposit")
-      .withArgs(0, acc2addr, depositAmount);
+      .withArgs(0, mockBjj, depositAmount);
 
     await expect(
       fluidex.withdrawETH(acc2addr, withdrawAmount)

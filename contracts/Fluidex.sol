@@ -14,6 +14,7 @@ import "hardhat/console.sol";
 import "./Utils.sol";
 
 import "./Storage.sol";
+import "./UserInfo.sol";
 import "./Config.sol";
 import "./Events.sol";
 
@@ -25,10 +26,15 @@ contract Fluidex is ReentrancyGuard, Storage, Config, Events, Ownable {
     using SafeMath for uint256;
 
     uint16 constant TOKEN_NUM_LIMIT = 65535;
+    uint16 constant USER_NUM_LIMIT = 65535;
 
     uint16 public tokenNum;
     mapping(uint16 => address) public tokenIdToAddr;
     mapping(address => uint16) public tokenAddrToId;
+
+    uint16 public userNum;
+    mapping(uint16 => UserInfo) public userIdToUserInfo;
+    mapping(string => uint16) public userBjjPubkeyToUserId;
 
     function initialize() external {}
 
@@ -58,9 +64,24 @@ contract Fluidex is ReentrancyGuard, Storage, Config, Events, Ownable {
         emit NewTradingPair(baseTokenId, quoteTokenId);
     }
 
+    // TODO: check signature?
+    function registerUser(address ethAddr, string memory bjjPubkey) internal {
+        userNum++;
+        require(userBjjPubkeyToUserId[bjjPubkey] == 0, "user existed");
+        require(userNum < USER_NUM_LIMIT, "user num limit reached");
+
+        uint16 userId = userNum;
+        userIdToUserInfo[userId] = UserInfo({
+            ethAddr: ethAddr,
+            bjjPubkey: bjjPubkey
+        });
+        userBjjPubkeyToUserId[bjjPubkey] = userId;
+        emit RegisterUser(ethAddr, userId, bjjPubkey);
+    }
+
     // 0 tokenId means native ETH coin
     // TODO: zkSync uses uint128 for amount
-    function registerDeposit(uint16 tokenId, address to, uint256 amount) internal {
+    function registerDeposit(uint16 tokenId, string memory to, uint256 amount) internal {
         // Priority Queue request
         Operations.Deposit memory op =
             Operations.Deposit({
@@ -75,10 +96,15 @@ contract Fluidex is ReentrancyGuard, Storage, Config, Events, Ownable {
     }
 
     /// @param to the L2 address of the deposit target.
-    // TODO: change to L2 address
-    function depositETH(address to) external payable {
+    function depositETH(
+        string calldata to // L2 bjjPubkey
+    ) external payable {
         // You must `approve` the allowance before calling this method
-        require(to != address(0), "invalid address");
+
+        if (userBjjPubkeyToUserId[to] == 0) {
+            registerUser(msg.sender, to);
+        }
+
         // 0 tokenId means native ETH coin
         registerDeposit(0, to, msg.value);
     }
@@ -87,13 +113,18 @@ contract Fluidex is ReentrancyGuard, Storage, Config, Events, Ownable {
     /// @param amount the deposit amount.
     function depositERC20(
         IERC20 token,
-        address to, // TODO: change to L2 address
+        string calldata to, // L2 bjjPubkey
         uint128 amount
     ) external nonReentrant {
         // You must `approve` the allowance before calling this method
-        require(to != address(0), "invalid address");
+
         uint16 tokenId = tokenAddrToId[address(token)];
         require(tokenId != 0, "invalid token");
+
+        if (userBjjPubkeyToUserId[to] == 0) {
+            registerUser(msg.sender, to);
+        }
+
         uint256 balanceBeforeDeposit = token.balanceOf(address(this));
         token.safeTransferFrom(msg.sender, address(this), amount);
         uint256 balanceAfterDeposit = token.balanceOf(address(this));

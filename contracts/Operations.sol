@@ -17,7 +17,8 @@ library Operations {
         uint32 accountId;
         uint16 tokenId;
         uint256 amount; // TODO: zkSync uses uint128 for amount
-        address owner;
+        // address owner;
+        string owner;
     }
 
     /// Serialize deposit pubdata
